@@ -1,0 +1,61 @@
+{extends "layouts/app.latte"}
+
+{block title}Edit Todo{/block}
+
+{block styles}
+<style>
+  .form-card { background: #fff; border-radius: .5rem; box-shadow: 0 1px 3px rgba(0,0,0,.1); padding: 2rem; max-width: 600px; }
+  .form-group { margin-bottom: 1.25rem; }
+  label { display: block; font-size: .875rem; font-weight: 500; color: #374151; margin-bottom: .375rem; }
+  input[type="text"] { width: 100%; padding: .625rem .875rem; border: 1px solid #d1d5db; border-radius: .375rem; font-size: 1rem; }
+  input[type="text"]:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+  .input-error { border-color: #ef4444 !important; }
+  .error-msg { color: #ef4444; font-size: .8125rem; margin-top: .25rem; }
+  .btn { display: inline-block; padding: .5rem 1.25rem; border-radius: .375rem; font-size: .875rem; font-weight: 500; cursor: pointer; border: none; text-decoration: none; }
+  .btn-primary { background: #3b82f6; color: #fff; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-secondary { background: #f3f4f6; color: #374151; }
+  .btn-secondary:hover { background: #e5e7eb; }
+  .form-actions { display: flex; gap: .75rem; align-items: center; }
+  .status-badge { display: inline-flex; align-items: center; gap: .4rem; font-size: .875rem; color: #6b7280; }
+</style>
+{/block}
+
+{block content}
+<h1 style="margin-bottom:1.5rem">Edit Todo</h1>
+
+<div class="form-card">
+  <form action="/todos/{$todo->getId()}/update" method="POST">
+    {=csrf_field()}
+
+    <div class="form-group">
+      <label for="title">Title</label>
+      <input
+        type="text"
+        id="title"
+        name="title"
+        value="{$todo->getTitle()}"
+        autofocus
+        {if isset($errors['title'])}class="input-error"{/if}
+      >
+      {if isset($errors['title'])}
+        {foreach $errors['title'] as $msg}
+          <div class="error-msg">{$msg}</div>
+        {/foreach}
+      {/if}
+    </div>
+
+    <div class="form-group">
+      <span class="status-badge">
+        Status: <strong>{$todo->isCompleted() ? 'Completed' : 'Pending'}</strong>
+        &mdash; <a href="/todos/{$todo->getId()}/toggle">Toggle</a>
+      </span>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+      <a href="/todos" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{/block}

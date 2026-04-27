@@ -1,0 +1,12 @@
+{extends "layouts/app.latte"}
+
+{block title}404 Not Found — {$app_name}{/block}
+
+{block content}
+<div style="text-align: center; padding: 4rem 0;">
+  <h1 style="font-size: 5rem; font-weight: 800; color: #94a3b8;">404</h1>
+  <p style="font-size: 1.5rem; color: #1e293b; margin: 1rem 0;">Page Not Found</p>
+  <p style="color: #64748b; margin-bottom: 2rem;">{$message ?? 'The page you are looking for could not be found.'}</p>
+  <a href="/" style="color: #3b82f6; text-decoration: none; font-weight: 500;">← Back to Home</a>
+</div>
+{/block}

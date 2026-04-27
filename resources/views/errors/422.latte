@@ -1,0 +1,19 @@
+{extends "layouts/app.latte"}
+
+{block title}422 Unprocessable Entity — {$app_name}{/block}
+
+{block content}
+<div style="max-width: 600px; margin: 4rem auto;">
+  <h1 style="font-size: 1.5rem; font-weight: 700; color: #1e293b; margin-bottom: 1rem;">Validation Failed</h1>
+  {if $errors}
+    <ul style="list-style: none; background: #fef2f2; border: 1px solid #fecaca; border-radius: 0.5rem; padding: 1rem;">
+      {foreach $errors as $field => $fieldErrors}
+        {foreach $fieldErrors as $error}
+          <li style="color: #dc2626; padding: 0.25rem 0;">{$field}: {$error}</li>
+        {/foreach}
+      {/foreach}
+    </ul>
+  {/if}
+  <a href="javascript:history.back()" style="display: inline-block; margin-top: 1.5rem; color: #3b82f6; text-decoration: none; font-weight: 500;">← Go Back</a>
+</div>
+{/block}
