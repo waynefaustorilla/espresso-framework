@@ -4,28 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{block title}{$app_name}{/block}</title>
-  {vite("resources/js/app.js")|noescape}
+  {vite("resources/css/app.css")|noescape}
   {block styles}{/block}
 </head>
 <body>
-  <nav>
-    <div class="container">
-      <a href="/">{$app_name}</a>
-    </div>
-  </nav>
+<button class="btn btn-primary">Click Me</button>
 
-  <main>
-    <div class="container">
-      {block content}{/block}
-    </div>
-  </main>
-
-  <footer>
-    <div class="container">
-      &copy; {=date('Y')} {$app_name}
-    </div>
-  </footer>
-
-  {block scripts}{/block}
+{vite("resources/js/app.js")|noescape}
 </body>
 </html>

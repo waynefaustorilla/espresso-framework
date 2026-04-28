@@ -5,15 +5,13 @@ declare(strict_types=1);
 namespace Espresso\View;
 
 use Espresso\Auth\AuthManager;
-use Espresso\Http\Middleware\CsrfMiddleware;
+use Espresso\Http\View\ViewRenderer;
 use Latte\Engine;
 use Latte\Loaders\FileLoader;
 use Latte\Runtime\Html;
 
 class LatteFactory {
-  private static array $globals = [];
-
-  public static function create(array $appConfig, AuthManager $authManager): Engine {
+  public function create(array $appConfig, AuthManager $authManager, callable $csrfTokenGenerator, callable $csrfFieldGenerator): ViewRenderer {
     $latte = new Engine();
     $latte->setLoader(new FileLoader($appConfig["views"]));
 
@@ -21,25 +19,15 @@ class LatteFactory {
     $latte->setTempDirectory($cacheDir);
     $latte->setAutoRefresh($appConfig["debug"]);
 
-    self::$globals = [
+    $latte->addFunction("csrf_token", $csrfTokenGenerator);
+    $latte->addFunction("csrf_field", $csrfFieldGenerator);
+
+    $globals = [
       "app_name" => $appConfig["name"],
-      "app_env"  => $appConfig["env"],
-      "auth"     => $authManager,
+      "app_env" => $appConfig["env"],
+      "auth" => $authManager,
     ];
 
-    $latte->addFunction("csrf_token", function (): string {
-      return CsrfMiddleware::generateToken();
-    });
-
-    $latte->addFunction("csrf_field", function (): Html {
-      $token = CsrfMiddleware::generateToken();
-      return new Html('<input type="hidden" name="_csrf_token" value="' . htmlspecialchars($token, ENT_QUOTES, "UTF-8") . '">');
-    });
-
-    return $latte;
-  }
-
-  public static function globals(): array {
-    return self::$globals;
+    return new ViewRenderer($latte, $globals);
   }
 }

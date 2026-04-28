@@ -17,6 +17,7 @@
     "respect/validation": "^2.4",
     "symfony/cache": "^7.4",
     "symfony/console": "^7.4",
+    "symfony/mailer": "*",
     "symfony/var-exporter": "7.4",
     "vlucas/phpdotenv": "^5.6"
   },
@@ -37,7 +38,11 @@
     }
   },
   "scripts": {
-    "test": "vendor/bin/phpunit"
+    "test": "vendor/bin/phpunit",
+    "migrate": "vendor/bin/doctrine-migrations migrate --db-configuration=database/dependency-factory.php --no-interaction",
+    "migrate:status": "vendor/bin/doctrine-migrations status --db-configuration=database/dependency-factory.php",
+    "migrate:diff": "vendor/bin/doctrine-migrations diff --db-configuration=database/dependency-factory.php",
+    "migrate:rollback": "vendor/bin/doctrine-migrations migrate prev --db-configuration=database/dependency-factory.php --no-interaction"
   },
   "config": {
     "optimize-autoloader": true,

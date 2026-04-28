@@ -7,7 +7,7 @@ namespace Espresso\Database\Repository;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityRepository;
 
-abstract class AbstractRepository {
+abstract class AbstractRepository implements RepositoryInterface {
   protected EntityRepository $repository;
 
   public function __construct(protected readonly EntityManager $entityManager) {

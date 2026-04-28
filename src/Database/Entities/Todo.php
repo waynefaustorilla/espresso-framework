@@ -7,12 +7,11 @@ namespace Espresso\Database\Entities;
 use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
 use Espresso\Database\Concerns\HasMagicProperties;
-use JsonSerializable;
 
 #[ORM\Entity]
 #[ORM\HasLifecycleCallbacks]
 #[ORM\Table(name: "todos")]
-class Todo implements JsonSerializable {
+class Todo {
   use HasMagicProperties;
 
   #[ORM\Id]

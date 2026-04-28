@@ -4,20 +4,15 @@ declare(strict_types=1);
 
 namespace Espresso\Validation;
 
-use Respect\Validation\Exceptions\NestedValidationException;
-use Respect\Validation\Validator as v;
-
 class Validator {
   public function validate(array $data, array $rules): array {
     $errors = [];
 
     foreach ($rules as $field => $rule) {
-      $value = $data[$field] ?? null;
+      $fieldErrors = $rule->validate($field, $data[$field] ?? null);
 
-      try {
-        $rule->setName($field)->assert($value);
-      } catch (NestedValidationException $nestedValidationException) {
-        $errors[$field] = array_values($nestedValidationException->getMessages());
+      if (!empty($fieldErrors)) {
+        $errors[$field] = $fieldErrors;
       }
     }
 

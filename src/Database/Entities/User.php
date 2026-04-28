@@ -10,12 +10,11 @@ use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Espresso\Auth\Contracts\Authenticatable;
 use Espresso\Database\Concerns\HasMagicProperties;
-use JsonSerializable;
 
 #[ORM\Entity]
 #[ORM\HasLifecycleCallbacks]
 #[ORM\Table(name: "users")]
-class User implements Authenticatable, JsonSerializable {
+class User implements Authenticatable {
   use HasMagicProperties;
 
   #[ORM\Id]
@@ -38,10 +37,10 @@ class User implements Authenticatable, JsonSerializable {
   #[ORM\OneToMany(mappedBy: "user", targetEntity: Todo::class, cascade: ["persist", "remove"])]
   private Collection $todos;
 
-  public function __construct(string $name, string $email, string $password) {
+  public function __construct(string $name, string $email, string $hashedPassword) {
     $this->name = $name;
     $this->email = $email;
-    $this->password = password_hash($password, PASSWORD_BCRYPT);
+    $this->password = $hashedPassword;
     $this->createdAt = new DateTimeImmutable();
     $this->todos = new ArrayCollection();
     $this->syncOriginal();
@@ -71,8 +70,8 @@ class User implements Authenticatable, JsonSerializable {
     return $this->password;
   }
 
-  public function setPassword(string $password): void {
-    $this->password = password_hash($password, PASSWORD_BCRYPT);
+  public function setPassword(string $hashedPassword): void {
+    $this->password = $hashedPassword;
   }
 
   public function getCreatedAt(): DateTimeImmutable {

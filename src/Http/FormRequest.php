@@ -13,6 +13,7 @@ abstract class FormRequest {
 
   public function __construct(
     private readonly Validator $validator,
+    private readonly DataFilter $dataFilter = new DataFilter(),
   ) {}
 
   abstract protected function rules(): array;
@@ -29,7 +30,7 @@ abstract class FormRequest {
       throw new ValidationException($errors);
     }
 
-    $this->validatedData = array_intersect_key($data, $this->rules());
+    $this->validatedData = $this->dataFilter->allowedKeys($data, array_keys($this->rules()));
     return $this;
   }
 

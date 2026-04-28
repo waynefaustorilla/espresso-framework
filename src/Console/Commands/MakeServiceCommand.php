@@ -4,13 +4,22 @@ declare(strict_types=1);
 
 namespace Espresso\Console\Commands;
 
-use Espresso\Application;
+use Espresso\Console\Generator\FileWriter;
+use Espresso\Console\Generator\NamespaceResolver;
+use Espresso\Console\Generator\StubBuilderInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class MakeServiceCommand extends Command {
+  public function __construct(
+    private readonly StubBuilderInterface $stubBuilder,
+    private readonly FileWriter $fileWriter,
+    private readonly NamespaceResolver $namespaceResolver,
+  ) {
+    parent::__construct();
+  }
   protected function configure(): void {
     $this
       ->setName("make:service")
@@ -25,46 +34,18 @@ class MakeServiceCommand extends Command {
       $name .= "Service";
     }
 
-    $targetDir = Application::basePath("src/Services");
-
-    if (!is_dir($targetDir)) {
-      mkdir($targetDir, 0755, true);
-    }
-
+    $targetDir = $this->namespaceResolver->getAbsolutePath("service");
+    $this->fileWriter->ensureDirectory($targetDir);
     $targetFile = $targetDir . "/{$name}.php";
 
-    if (file_exists($targetFile)) {
+    if ($this->fileWriter->exists($targetFile)) {
       $output->writeln("<error>Service {$name} already exists.</error>");
       return Command::FAILURE;
     }
 
-    file_put_contents($targetFile, $this->buildStub($name));
+    $this->fileWriter->write($targetFile, $this->stubBuilder->build($name));
 
     $output->writeln("<info>Service created: src/Services/{$name}.php</info>");
     return Command::SUCCESS;
-  }
-
-  private function buildStub(string $name): string {
-    $repositoryName = str_replace("Service", "Repository", $name);
-
-    return <<<PHP
-    <?php
-
-    declare(strict_types=1);
-
-    namespace Espresso\Services;
-
-    use Doctrine\ORM\EntityManager;
-    use Espresso\Database\Repository\\{$repositoryName};
-
-    class {$name} extends AbstractService {
-      public function __construct(
-        EntityManager \$entityManager,
-        private readonly {$repositoryName} \$repository,
-      ) {
-        parent::__construct(\$entityManager);
-      }
-    }
-    PHP;
   }
 }

@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace Espresso\Services;
 
-use Doctrine\ORM\EntityManager;
 use Espresso\Database\Entities\Todo;
-use Espresso\Database\Repository\TodoRepository;
+use Espresso\Database\Entities\User;
+use Espresso\Database\Repository\TodoRepositoryInterface;
 use Espresso\Http\Exception\HttpException;
 
-class TodoService extends AbstractService {
-  public function __construct(EntityManager $entityManager, private readonly TodoRepository $todoRepository) {
-    parent::__construct($entityManager);
-  }
+class TodoService {
+  public function __construct(
+    private readonly TodoRepositoryInterface $todoRepository,
+    private readonly TodoTransformer $transformer,
+  ) {}
 
   public function all(): array {
     return $this->todoRepository->findAllOrderedByDate();
@@ -28,8 +29,8 @@ class TodoService extends AbstractService {
     return $todo;
   }
 
-  public function create(array $data): Todo {
-    $todo = new Todo($data["title"]);
+  public function create(array $data, User $user): Todo {
+    $todo = $this->transformer->fromArray($data, $user);
 
     $this->todoRepository->save($todo);
 
@@ -38,7 +39,7 @@ class TodoService extends AbstractService {
 
   public function update(int $id, array $data): Todo {
     $todo = $this->findOrFail($id);
-    $todo->setTitle($data["title"]);
+    $this->transformer->applyUpdate($todo, $data);
 
     $this->todoRepository->save($todo);
 

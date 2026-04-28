@@ -4,13 +4,22 @@ declare(strict_types=1);
 
 namespace Espresso\Console\Commands;
 
-use Espresso\Application;
+use Espresso\Console\Generator\FileWriter;
+use Espresso\Console\Generator\NamespaceResolver;
+use Espresso\Console\Generator\StubBuilderInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class MakeRepositoryCommand extends Command {
+  public function __construct(
+    private readonly StubBuilderInterface $stubBuilder,
+    private readonly FileWriter $fileWriter,
+    private readonly NamespaceResolver $namespaceResolver,
+  ) {
+    parent::__construct();
+  }
   protected function configure(): void {
     $this
       ->setName("make:repository")
@@ -22,42 +31,21 @@ class MakeRepositoryCommand extends Command {
     $name = ucfirst((string) $input->getArgument("name"));
 
     if (!str_ends_with($name, "Repository")) {
-      $entityName = $name;
-      $name = $name . "Repository";
-    } else {
-      $entityName = str_replace("Repository", "", $name);
+      $name .= "Repository";
     }
 
-    $targetDir = Application::basePath("src/Database/Repository");
-
+    $targetDir = $this->namespaceResolver->getAbsolutePath("repository");
+    $this->fileWriter->ensureDirectory($targetDir);
     $targetFile = $targetDir . "/{$name}.php";
 
-    if (file_exists($targetFile)) {
+    if ($this->fileWriter->exists($targetFile)) {
       $output->writeln("<error>Repository {$name} already exists.</error>");
       return Command::FAILURE;
     }
 
-    file_put_contents($targetFile, $this->buildStub($name, $entityName));
+    $this->fileWriter->write($targetFile, $this->stubBuilder->build($name));
 
     $output->writeln("<info>Repository created: src/Database/Repository/{$name}.php</info>");
     return Command::SUCCESS;
-  }
-
-  private function buildStub(string $name, string $entityName): string {
-    return <<<PHP
-    <?php
-
-    declare(strict_types=1);
-
-    namespace Espresso\Database\Repository;
-
-    use Espresso\Database\Entities\\{$entityName};
-
-    class {$name} extends AbstractRepository {
-      protected function getEntityClass(): string {
-        return {$entityName}::class;
-      }
-    }
-    PHP;
   }
 }

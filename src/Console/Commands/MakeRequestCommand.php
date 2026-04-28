@@ -4,13 +4,22 @@ declare(strict_types=1);
 
 namespace Espresso\Console\Commands;
 
-use Espresso\Application;
+use Espresso\Console\Generator\FileWriter;
+use Espresso\Console\Generator\NamespaceResolver;
+use Espresso\Console\Generator\StubBuilderInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class MakeRequestCommand extends Command {
+  public function __construct(
+    private readonly StubBuilderInterface $stubBuilder,
+    private readonly FileWriter $fileWriter,
+    private readonly NamespaceResolver $namespaceResolver,
+  ) {
+    parent::__construct();
+  }
   protected function configure(): void {
     $this
       ->setName("make:request")
@@ -25,43 +34,18 @@ class MakeRequestCommand extends Command {
       $name .= "Request";
     }
 
-    $targetDir = Application::basePath("src/Http/Requests");
-
-    if (!is_dir($targetDir)) {
-      mkdir($targetDir, 0755, true);
-    }
-
+    $targetDir = $this->namespaceResolver->getAbsolutePath("request");
+    $this->fileWriter->ensureDirectory($targetDir);
     $targetFile = $targetDir . "/{$name}.php";
 
-    if (file_exists($targetFile)) {
+    if ($this->fileWriter->exists($targetFile)) {
       $output->writeln("<error>Request {$name} already exists.</error>");
       return Command::FAILURE;
     }
 
-    file_put_contents($targetFile, $this->buildStub($name));
+    $this->fileWriter->write($targetFile, $this->stubBuilder->build($name));
 
     $output->writeln("<info>Request created: src/Http/Requests/{$name}.php</info>");
     return Command::SUCCESS;
-  }
-
-  private function buildStub(string $name): string {
-    return <<<PHP
-    <?php
-
-    declare(strict_types=1);
-
-    namespace Espresso\Http\Requests;
-
-    use Espresso\Http\FormRequest;
-    use Respect\Validation\Validator as v;
-
-    class {$name} extends FormRequest {
-      protected function rules(): array {
-        return [
-          // "field" => v::notEmpty()->stringType()->length(1, 255),
-        ];
-      }
-    }
-    PHP;
   }
 }

@@ -15,7 +15,4 @@ $container = $app->getContainer();
 
 $config = new PhpFile(__DIR__ . "/../config/migrations.php");
 
-return DependencyFactory::fromEntityManager(
-  $config,
-  new ExistingEntityManager($container->get(EntityManager::class)),
-);
+return DependencyFactory::fromEntityManager($config, new ExistingEntityManager($container->get(EntityManager::class)));

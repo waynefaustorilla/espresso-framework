@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Espresso\Auth;
 
-use Doctrine\ORM\EntityManager;
 use Espresso\Auth\Contracts\GuardInterface;
-use Espresso\Auth\Guard\JwtGuard;
-use Espresso\Auth\Guard\SessionGuard;
+use Espresso\Auth\Factory\GuardFactoryInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
 
@@ -17,7 +15,7 @@ class AuthManager {
 
   public function __construct(
     private readonly array $config,
-    private readonly EntityManager $entityManager,
+    private readonly GuardFactoryInterface $guardFactory,
   ) {}
 
   public function guard(string $name = ""): GuardInterface {
@@ -46,10 +44,6 @@ class AuthManager {
       throw new RuntimeException("Auth guard [{$name}] is not defined.");
     }
 
-    return match ($guardConfig["driver"]) {
-      "session" => new SessionGuard($this->entityManager, $this->config),
-      "jwt" => new JwtGuard($this->entityManager, $this->config),
-      default => throw new RuntimeException("Unsupported auth driver [{$guardConfig['driver']}]."),
-    };
+    return $this->guardFactory->create($guardConfig["driver"], $guardConfig);
   }
 }

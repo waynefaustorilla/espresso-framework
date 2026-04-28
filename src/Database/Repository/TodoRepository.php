@@ -6,7 +6,7 @@ namespace Espresso\Database\Repository;
 
 use Espresso\Database\Entities\Todo;
 
-class TodoRepository extends AbstractRepository {
+class TodoRepository extends AbstractRepository implements TodoRepositoryInterface {
   protected function getEntityClass(): string {
     return Todo::class;
   }

@@ -21,6 +21,7 @@ A lightweight, full-stack PHP 8.4 MVC framework built on Doctrine ORM, League/Ro
   - [Entity Magic Properties](#entity-magic-properties)
 - [Migrations](#migrations)
 - [Seeders](#seeders)
+- [Serializers](#serializers)
 - [Frontend Assets (Vite + npm)](#frontend-assets-vite--npm)
 - [Views (Latte)](#views-latte)
 - [Middleware](#middleware)
@@ -287,20 +288,20 @@ declare(strict_types=1);
 namespace Espresso\Http\Controllers;
 
 use Espresso\Http\Controller\AbstractController;
+use Espresso\Http\Factory\FormRequestFactory;
 use Espresso\Http\Requests\StorePostRequest;
+use Espresso\Http\Response\ResponseFactory;
 use Espresso\Services\PostService;
-use Espresso\Validation\Validator;
-use Latte\Engine;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 class PostController extends AbstractController {
     public function __construct(
-        Engine $latte,
-        Validator $validator,
+        ResponseFactory $responseFactory,
+        FormRequestFactory $formRequestFactory,
         private readonly PostService $postService,
     ) {
-        parent::__construct($latte, $validator);
+        parent::__construct($responseFactory, $formRequestFactory);
     }
 
     public function index(ServerRequestInterface $request): ResponseInterface {
@@ -331,15 +332,20 @@ class PostController extends AbstractController {
 | `$this->redirect("/url")` | Return a redirect response |
 | `$this->formRequest(RequestClass::class, $request)` | Validate via FormRequest |
 
-### Register in ContainerFactory
+### Register in a Service Provider
 
-Every controller that has dependencies beyond `Engine` and `Validator` must be registered in `src/Container/ContainerFactory.php`:
+Every new controller must be registered so the container knows how to build it. Add it to `src/Container/Providers/DomainServiceProvider.php` (or create a new provider if it belongs to a different area):
 
 ```php
+use Espresso\Http\Controllers\PostController;
+use Espresso\Http\Factory\FormRequestFactory;
+use Espresso\Http\Response\ResponseFactory;
+use Espresso\Services\PostService;
+
 PostController::class => function (Container $c): PostController {
     return new PostController(
-        $c->get(Engine::class),
-        $c->get(Validator::class),
+        $c->get(ResponseFactory::class),
+        $c->get(FormRequestFactory::class),
         $c->get(PostService::class),
     );
 },
@@ -361,7 +367,7 @@ This generates `src/Http/Requests/StorePostRequest.php`.
 
 ### Defining rules
 
-Rules use [Respect\Validation](https://respect-validation.readthedocs.io):
+Rules use [Respect\Validation](https://respect-validation.readthedocs.io), wrapped in a `RespectValidationRule` so the validator stays decoupled from the validation library:
 
 ```php
 <?php
@@ -371,14 +377,15 @@ declare(strict_types=1);
 namespace Espresso\Http\Requests;
 
 use Espresso\Http\FormRequest;
+use Espresso\Validation\RespectValidationRule;
 use Respect\Validation\Validator as v;
 
 class StorePostRequest extends FormRequest {
     protected function rules(): array {
         return [
-            "title"   => v::stringType()->notEmpty()->length(1, 255),
-            "body"    => v::stringType()->notEmpty(),
-            "status"  => v::in(["draft", "published"]),
+            "title"  => new RespectValidationRule(v::stringType()->notEmpty()->length(1, 255)),
+            "body"   => new RespectValidationRule(v::stringType()->notEmpty()),
+            "status" => new RespectValidationRule(v::in(["draft", "published"])),
         ];
     }
 }
@@ -436,36 +443,26 @@ declare(strict_types=1);
 
 namespace Espresso\Services;
 
-use Doctrine\ORM\EntityManager;
 use Espresso\Database\Entities\Post;
 use Espresso\Database\Repository\PostRepository;
 use Espresso\Http\Exception\HttpException;
 
-class PostService extends AbstractService {
+class PostService {
     public function __construct(
-        EntityManager $entityManager,
-        private readonly PostRepository $postRepository,
-    ) {
-        parent::__construct($entityManager);
-    }
+        private readonly PostRepository $posts,
+    ) {}
 
     public function all(): array {
-        return $this->postRepository->findAll();
+        return $this->posts->findAll();
     }
 
     public function findOrFail(int $id): Post {
-        $post = $this->postRepository->find($id);
-
-        if (!$post instanceof Post) {
-            throw new HttpException(404, "Post not found.");
-        }
-
-        return $post;
+        return $this->posts->findOrFail($id);
     }
 
     public function create(array $data): Post {
         $post = new Post($data["title"], $data["body"]);
-        $this->postRepository->save($post);
+        $this->posts->save($post);
         return $post;
     }
 
@@ -473,18 +470,20 @@ class PostService extends AbstractService {
         $post = $this->findOrFail($id);
         $post->setTitle($data["title"]);
         $post->setBody($data["body"]);
-        $this->postRepository->save($post);
+        $this->posts->save($post);
         return $post;
     }
 
     public function delete(int $id): void {
         $post = $this->findOrFail($id);
-        $this->postRepository->delete($post);
+        $this->posts->delete($post);
     }
 }
 ```
 
-### Register in ContainerFactory
+### Register in a Service Provider
+
+Add the repository and service to `src/Container/Providers/DomainServiceProvider.php`:
 
 ```php
 use Espresso\Database\Repository\PostRepository;
@@ -496,7 +495,6 @@ PostRepository::class => function (Container $c): PostRepository {
 
 PostService::class => function (Container $c): PostService {
     return new PostService(
-        $c->get(EntityManager::class),
         $c->get(PostRepository::class),
     );
 },
@@ -599,12 +597,11 @@ namespace Espresso\Database\Entities;
 use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
 use Espresso\Database\Concerns\HasMagicProperties;
-use JsonSerializable;
 
 #[ORM\Entity]
 #[ORM\HasLifecycleCallbacks]
 #[ORM\Table(name: "posts")]
-class Post implements JsonSerializable {
+class Post {
     use HasMagicProperties;
 
     #[ORM\Id]
@@ -682,7 +679,7 @@ private Collection $tags;
 
 ### Entity Magic Properties
 
-The `HasMagicProperties` trait (in `src/Database/Concerns/`) gives every entity a set of convenient behaviours inspired by Laravel's Eloquent models. Add it to any entity along with `implements JsonSerializable` and the `#[ORM\HasLifecycleCallbacks]` attribute.
+The `HasMagicProperties` trait (in `src/Database/Concerns/`) gives every entity a set of convenient behaviours. Add it to any entity along with the `#[ORM\HasLifecycleCallbacks]` attribute.
 
 #### Dynamic property access
 
@@ -716,7 +713,7 @@ Only fields that have a matching `set*()` method are updated; all others are sil
 
 #### Serialisation
 
-Convert an entity to an array or JSON string without writing manual mapping code:
+Convert an entity to an array or a JSON string without writing manual mapping code:
 
 ```php
 $post->toArray();
@@ -724,13 +721,11 @@ $post->toArray();
 
 $post->toJson();
 // '{"id":1,"title":"Hello",...}'
-
-// Entities also implement JsonSerializable, so they serialise automatically:
-json_encode($post);
-json_encode(["post" => $post]);
 ```
 
 Dates are automatically formatted as ISO 8601 strings.
+
+For JSON API responses, use a dedicated **Serializer** class (see the [Serializers](#serializers) section below) rather than calling `toArray()` directly in controllers. This keeps the shape of your API response in one place.
 
 #### Dirty tracking
 
@@ -838,10 +833,13 @@ declare(strict_types=1);
 namespace Database\Seeders;
 
 use Doctrine\ORM\EntityManager;
+use Espresso\Auth\Contracts\PasswordHasherInterface;
 use Espresso\Database\Entities\Post;
 
 class PostSeeder {
-    public function __construct(private readonly EntityManager $entityManager) {}
+    public function __construct(
+        private readonly EntityManager $entityManager,
+    ) {}
 
     public function run(): void {
         $posts = [
@@ -858,6 +856,14 @@ class PostSeeder {
     }
 }
 ```
+
+> **Tip:** If your seeder creates `User` entities, hash passwords before passing them to the constructor:
+> ```php
+> use Espresso\Auth\PasswordHasher\BcryptPasswordHasher;
+>
+> $hasher = new BcryptPasswordHasher();
+> $user = new User("Alice", "alice@example.com", $hasher->hash("secret"));
+> ```
 
 ### Create a seed console command
 
@@ -893,7 +899,74 @@ class SeedCommand extends Command {
 }
 ```
 
-Then register it in `ContainerFactory` and add it to `Console\Kernel`.
+Then register it in `src/Container/Providers/ConsoleServiceProvider.php` and call `$registry->register(new SeedCommand(...))` inside `CommandRegistryInterface::class` definition.
+
+---
+
+## Serializers
+
+When a controller needs to return an entity as JSON, use a **Serializer** class instead of `toArray()` or `json_encode()` directly. Serializers live in `src/Http/Serializer/` and let you control exactly which fields are exposed in the API response.
+
+### Using an existing serializer
+
+```php
+use Espresso\Http\Serializer\TodoSerializer;
+
+$serializer = new TodoSerializer();
+
+// Single entity
+return $this->json($serializer->serialize($todo));
+
+// Collection
+$items = array_map(fn($todo) => $serializer->serialize($todo), $todos);
+return $this->json($items);
+```
+
+### Creating your own serializer
+
+Create `src/Http/Serializer/PostSerializer.php`:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace Espresso\Http\Serializer;
+
+use Espresso\Database\Entities\Post;
+
+class PostSerializer implements SerializerInterface {
+    public function serialize(object $entity): array {
+        assert($entity instanceof Post);
+        return [
+            "id"         => $entity->getId(),
+            "title"      => $entity->getTitle(),
+            "status"     => $entity->getStatus(),
+            "created_at" => $entity->getCreatedAt()->format("c"),
+        ];
+    }
+}
+```
+
+Inject it into your controller alongside the service:
+
+```php
+class PostController extends AbstractController {
+    public function __construct(
+        ResponseFactory $responseFactory,
+        FormRequestFactory $formRequestFactory,
+        private readonly PostService $postService,
+        private readonly PostSerializer $serializer,
+    ) {
+        parent::__construct($responseFactory, $formRequestFactory);
+    }
+
+    public function index(ServerRequestInterface $request): ResponseInterface {
+        $posts = $this->postService->all();
+        return $this->json(array_map(fn($p) => $this->serializer->serialize($p), $posts));
+    }
+}
+```
 
 ---
 
@@ -1144,11 +1217,17 @@ $guard->logout($request);
 
 ### JWT (API)
 
+`attempt()` returns a `bool` indicating success. Retrieve the generated token with `getToken()` after a successful attempt:
+
 ```php
 $guard = $authManager->guard("api");
 
-// Generate token (returns JWT string)
-$token = $guard->attempt("user@example.com", "password", UserEntity::class, $request);
+// Attempt returns true/false
+$success = $guard->attempt("user@example.com", "password", UserEntity::class, $request);
+
+if ($success) {
+    $token = $guard->getToken(); // JWT string, valid for JWT_TTL seconds
+}
 
 // Validate token from Authorization header
 $guard->check($request); // bool
@@ -1157,17 +1236,21 @@ $user = $guard->user($request);
 
 ### Protecting routes with AuthMiddleware
 
+Inject the specific guard directly into `AuthMiddleware` — do not pass `AuthManager`:
+
 ```php
 use Espresso\Http\Middleware\AuthMiddleware;
 use Espresso\Auth\AuthManager;
 
 // web guard (session)
+$webGuard = $container->get(AuthManager::class)->guard("web");
 $router->map("GET", "/profile", [ProfileController::class, "index"])
-    ->middleware(new AuthMiddleware($container->get(AuthManager::class), "web"));
+    ->middleware(new AuthMiddleware($webGuard));
 
 // api guard (JWT)
+$apiGuard = $container->get(AuthManager::class)->guard("api");
 $router->map("GET", "/api/profile", [Api\ProfileController::class, "index"])
-    ->middleware(new AuthMiddleware($container->get(AuthManager::class), "api"));
+    ->middleware(new AuthMiddleware($apiGuard));
 ```
 
 ### Making an entity authenticatable
@@ -1183,6 +1266,32 @@ class User implements Authenticatable {
     public function getId(): int|string { return $this->id; }
     public function getEmail(): string { return $this->email; }
     public function getPassword(): string { return $this->password; }
+}
+```
+
+### Creating a user with a hashed password
+
+Do not hash passwords inside the entity. Use `PasswordHasherInterface` before creating the entity:
+
+```php
+use Espresso\Auth\Contracts\PasswordHasherInterface;
+use Espresso\Database\Entities\User;
+
+class UserService {
+    public function __construct(
+        private readonly UserRepository $users,
+        private readonly PasswordHasherInterface $hasher,
+    ) {}
+
+    public function register(array $data): User {
+        $user = new User(
+            $data["name"],
+            $data["email"],
+            $this->hasher->hash($data["password"]),
+        );
+        $this->users->save($user);
+        return $user;
+    }
 }
 ```
 
@@ -1425,37 +1534,56 @@ cp .env.example .env
 
 ## Container Bindings
 
-All services are resolved from the PHP-DI container. When you create a new class with dependencies, register it in `src/Container/ContainerFactory.php` inside `definitions()`:
+All services are resolved from the PHP-DI container. When you create a new class with dependencies, register it in the appropriate **Service Provider** inside `src/Container/Providers/` — not in `ContainerFactory` directly.
+
+### Which provider to use?
+
+| What you're registering | Provider |
+|---|---|
+| A new entity, repository, or service | `DomainServiceProvider` |
+| A new controller, middleware, or view-related class | `HttpServiceProvider` |
+| A mail class | `MailServiceProvider` |
+| A console command | `ConsoleServiceProvider` |
+| A logger or cache adapter | `InfrastructureServiceProvider` |
+| Auth guards, password hashers | `AuthServiceProvider` |
+
+### Example — adding a new service
+
+Open `src/Container/Providers/DomainServiceProvider.php` and add definitions to the array inside `register()`:
 
 ```php
-use Espresso\Services\PostService;
 use Espresso\Database\Repository\PostRepository;
+use Espresso\Services\PostService;
 use Espresso\Http\Controllers\PostController;
+use Espresso\Http\Factory\FormRequestFactory;
+use Espresso\Http\Response\ResponseFactory;
 
+// 1. Register the repository
 PostRepository::class => function (Container $c): PostRepository {
     return new PostRepository($c->get(EntityManager::class));
 },
 
+// 2. Register the service (depends on the repository)
 PostService::class => function (Container $c): PostService {
     return new PostService(
-        $c->get(EntityManager::class),
         $c->get(PostRepository::class),
     );
 },
 
+// 3. Register the controller (in HttpServiceProvider, or DomainServiceProvider)
 PostController::class => function (Container $c): PostController {
     return new PostController(
-        $c->get(Engine::class),
-        $c->get(Validator::class),
+        $c->get(ResponseFactory::class),
+        $c->get(FormRequestFactory::class),
         $c->get(PostService::class),
     );
 },
 ```
 
-Resolving from the container manually (e.g. in a seeder command):
+The standard registration order is always: **Repository → Service → Controller**, since each depends on the one before it.
+
+Resolving a binding manually (e.g. in a seeder command):
 
 ```php
 $postService = $container->get(PostService::class);
 ```
-
-The standard registration order is: **Repository → Service → Controller**, since each depends on the one before it.

@@ -17,11 +17,19 @@ if (!function_exists("env")) {
 if (!function_exists("vite")) {
   function vite(string $entry): string {
     $manifestPath = \Espresso\Application::basePath("public/build/.vite/manifest.json");
+    $isCss = str_ends_with($entry, ".css");
 
     if (!file_exists($manifestPath)) {
+      if ($isCss) {
+        return sprintf(
+          '<link rel="stylesheet" href="http://localhost:5173/%s">',
+          ltrim($entry, "/")
+        );
+      }
+
       return sprintf(
         '<script type="module" src="http://localhost:5173/@vite/client"></script>' . "\n" .
-        '  <script type="module" src="http://localhost:5173/%s"></script>',
+          '  <script type="module" src="http://localhost:5173/%s"></script>',
         ltrim($entry, "/")
       );
     }
@@ -33,6 +41,10 @@ if (!function_exists("vite")) {
       return "";
     }
 
+    if ($isCss) {
+      return sprintf('<link rel="stylesheet" href="/build/%s">', $asset["file"]);
+    }
+
     $html = "";
 
     foreach ($asset["css"] ?? [] as $cssFile) {
@@ -42,5 +54,11 @@ if (!function_exists("vite")) {
     $html .= sprintf('<script type="module" src="/build/%s"></script>', $asset["file"]);
 
     return $html;
+  }
+}
+
+if (!function_exists("mailer")) {
+  function mailer(): \Espresso\Mail\Mailer {
+    return \Espresso\Application::container()->get(\Espresso\Mail\Mailer::class);
   }
 }

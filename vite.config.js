@@ -4,6 +4,7 @@ import { resolve } from "path";
 export default defineConfig({
   build: {
     outDir: "public/build",
+    server: 5173,
     manifest: true,
     emptyOutDir: true,
     rollupOptions: {
@@ -15,4 +16,16 @@ export default defineConfig({
   server: {
     cors: true,
   },
+  css: {
+    preprocessorOptions: {
+      scss: {
+        silenceDeprecations: [
+          "import",
+          "mixed-decls",
+          "color-functions",
+          "global-builtin",
+        ]
+      }
+    }
+  }
 });
